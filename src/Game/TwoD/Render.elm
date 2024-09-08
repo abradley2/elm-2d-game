@@ -12,6 +12,7 @@ module Game.TwoD.Render exposing
     , veryCustom
     , renderTransparent
     , toWebGl
+    , customFragmentWithSettings, renderTransparentWithSettings
     )
 
 {-|
@@ -103,6 +104,7 @@ import Game.TwoD.Shapes exposing (unitSquare, unitTriangle)
 import Math.Matrix4 exposing (Mat4)
 import Math.Vector2 as V2 exposing (Vec2, vec2)
 import WebGL exposing (Entity)
+import WebGL.Settings as Setting exposing (Setting)
 import WebGL.Settings.Blend as Blend
 import WebGL.Settings.DepthTest as DepthTest
 import WebGL.Texture exposing (Texture)
@@ -190,6 +192,30 @@ renderTransparent =
             }
         , DepthTest.default
         ]
+
+
+{-| The same as render transparent but allows passing in custom settings
+-}
+renderTransparentWithSettings :
+    List Setting
+    -> WebGL.Shader attributes uniforms varyings
+    -> WebGL.Shader {} uniforms varyings
+    -> WebGL.Mesh attributes
+    -> uniforms
+    -> WebGL.Entity
+renderTransparentWithSettings settings =
+    WebGL.entityWith <|
+        [ Blend.custom
+            { r = 0
+            , g = 0
+            , b = 0
+            , a = 0
+            , color = Blend.customAdd Blend.srcAlpha Blend.oneMinusSrcAlpha
+            , alpha = Blend.customAdd Blend.one Blend.oneMinusSrcAlpha
+            }
+        , DepthTest.default
+        ]
+            ++ settings
 
 
 {-| A colored shape, great for prototyping
@@ -497,6 +523,37 @@ customFragment makeUniforms { fragmentShader, position, size, rotation, pivot } 
     Renderable
         (\{ camera, screenSize, time } ->
             renderTransparent vertTexturedRect
+                fragmentShader
+                unitSquare
+                (makeUniforms
+                    { transform = makeTransform position rotation size pivot
+                    , cameraProj = Camera.view camera screenSize
+                    , time = time
+                    }
+                )
+        )
+
+
+{-| This is the same as customFragment, but with settings.
+-}
+customFragmentWithSettings :
+    List Setting
+    -> MakeUniformsFunc u
+    ->
+        { b
+            | fragmentShader :
+                WebGL.Shader {} { u | cameraProj : Mat4, transform : Mat4 } { vcoord : Vec2 }
+            , pivot : Float2
+            , position : Float3
+            , rotation : Float
+            , size : Float2
+        }
+    -> Renderable
+customFragmentWithSettings settings makeUniforms { fragmentShader, position, size, rotation, pivot } =
+    Renderable
+        (\{ camera, screenSize, time } ->
+            renderTransparentWithSettings settings
+                vertTexturedRect
                 fragmentShader
                 unitSquare
                 (makeUniforms
